@@ -242,6 +242,563 @@ const ROOMS = [
   {
     id:1, name:"La Crypte des Ombres", icon:"💀",
     atmo:"Les murs de pierre noire suintent l'humeur des siècles. Des centaines de crânes sont empilés dans des alcôves obscures. Au centre, un autel fendu porte une inscription rongée par le temps.",
+    enigma:`Sur la dalle centrale, vingt-six symboles sont gravés en cercle. L'un d'eux brille d'une lueur violette.<br><br><em>« Les scribes me répètent à l'envie — je suis leur lettre favorite depuis la nuit des temps. Dans la langue de ce donjon, je porte plus de mots sur mes épaules que toute autre lettre.<br><br>Je suis une voyelle, mais je peux me taire. Je termine les verbes à l'infinitif. Je suis l'écho que laisse une bouche après avoir parlé dans le vide.<br><br>Parmi les vingt-six, je suis la cinquième, mais c'est par mes répétitions que l'on me reconnaît. Un seul caractère suffit. »</em><br><br>Entrez la lettre qui brille.`,
+    answers:['E'],
+    lbl:'Une seule lettre', max:1, display:'E',
+    votes:["Compter les lettres de l'alphabet","Chercher la voyelle la plus fréquente","Analyser les fins de mots","Chercher la 5e lettre"],
+  },
+  {
+    id:2, name:"La Salle des Runes de Sang", icon:"🩸",
+    atmo:"Des runes peintes en sang séché couvrent chaque centimètre de mur. Une odeur de fer et de cendres. Sur le sol, une séquence est gravée dans la roche.",
+    enigma:`La séquence gravée dans la roche :
+
+<em>1 &nbsp;·&nbsp; 1 &nbsp;·&nbsp; 2 &nbsp;·&nbsp; 3 &nbsp;·&nbsp; 5 &nbsp;·&nbsp; 8 &nbsp;·&nbsp; 13 &nbsp;·&nbsp; 21 &nbsp;·&nbsp; ?</em>
+
+<br><br>Quel nombre vient ensuite ?`,
+    answers:['34'],
+    lbl:'Un nombre', max:3, display:'34',
+    votes:["Suite additive","Suite multiplicative","Suite des carrés","Autre type de suite"],
+  },
+  {
+    id:3, name:"L'Œil du Néant", icon:"👁️",
+    atmo:"Une salle circulaire sans porte visible. Le sol est une mosaïque dont le centre représente un œil colossal. Des murmures résonnent depuis les murs.",
+    enigma:`Une voix sans corps murmure :
+
+<em>« Je suis une lettre de l'alphabet.
+Je ressemble à un œil qui regarde.
+Tracez-moi et vous verrez un cercle.
+Dites-moi et vous ouvrez la bouche.
+Comptez-moi : je suis la quinzième. »</em>
+
+<br><br>Entrez la réponse.`,
+    answers:['O'],
+    lbl:'Un caractère', max:1, display:'O',
+    votes:["Chercher une lettre ronde","Compter les lettres de l'alphabet","Penser aux voyelles","Chercher un symbole visuel"],
+  },
+  {
+    id:4, name:"La Forge des Âmes Perdues", icon:"🔥",
+    atmo:"Chaleur suffocante. Des forges éteintes dont les braises rougeoient encore. Des armures abandonnées se dressent comme des sentinelles mortes. Sur l'enclume principale, un message alchimique.",
+    enigma:`L'enclume porte ces mots :
+
+<em>« J'ai des villes, mais pas de maisons.
+J'ai des montagnes, mais pas d'arbres.
+J'ai de l'eau, mais pas de poissons.
+J'ai des routes, mais pas de voitures.
+Qui suis-je ? »</em>
+
+<br><br>Répondez en un mot.`,
+    answers:['CARTE','UNE CARTE','LA CARTE','MAP'],
+    lbl:'Un mot', max:10, display:'CARTE',
+    votes:["Chercher un objet physique","Penser à une représentation","Chercher quelque chose d'abstrait","Analyser les paradoxes"],
+  },
+  {
+    id:5, name:"Le Trône du Gardien", icon:"🜏",
+    atmo:"Une salle aux proportions impossibles. Le plafond se perd dans l'obscurité. Au centre, un trône de cristal noir. Le Gardien attend, immobile depuis l'aube des temps. Devant lui, le piédestal de la dernière épreuve.",
+    enigma:`Le Gardien lève une main. Quatre torches s'allument derrière lui.
+Il parle d'une voix sans âge :
+
+<em>« Ce que vous avez appris ne se perd pas.
+Chaque salle vous a laissé quelque chose.
+Assemblez ces fragments dans l'ordre exact
+où vous les avez obtenus.
+Sans espace. Sans séparateur.
+Suivi du nombre de salles
+que vous avez traversées. »</em>
+
+<br><br>Entrez le code complet.`,
+    answers:['E34OCARTE5','E 34 O CARTE 5'],
+    lbl:'Le code complet', max:14, display:'E34OCARTE5',
+    votes:["Retrouver les réponses précédentes","Trouver l'ordre exact","Compter les salles","Chercher un piège dans l'énoncé"],
+  }
+];
+
+// ══════════════
+let G={
+  room:0, done:[], lives:7, errors:0,
+  secs:45*60, tick:null,
+  answers:{}, votes:{}, voted:{},
+};
+ROOMS.forEach((r,i)=>{G.votes[i]={};r.votes.forEach(v=>G.votes[i][v]=0);});
+
+function startGame(){
+  document.getElementById('s-title').style.display='none';
+  document.getElementById('s-game').style.display='block';
+  renderLives();startTimer();renderRoom();renderSide();
+}
+
+function startTimer(){
+  G.tick=setInterval(()=>{
+    G.secs--;
+    const m=String(Math.floor(G.secs/60)).padStart(2,'0');
+    const s=String(G.secs%60).padStart(2,'0');
+    const el=document.getElementById('timer');
+    el.textContent=m+':'+s;
+    el.className=G.secs<300?'hot':'';
+    if(G.secs<=0){clearInterval(G.tick);lose("Le temps s'est écoulé. Le Donjon vous a consumés.");}
+  },1000);
+}
+
+function renderRoom(){
+  const r=ROOMS[G.room];
+  const done=G.done.includes(G.room);
+  const saved=G.answers[G.room]||'';
+  document.getElementById('gmain').innerHTML=`
+    <div class="rhead">
+      <span class="rnum">Salle ${r.id} / ${ROOMS.length}</span>
+      <h2 class="rname">${r.icon} &nbsp; ${r.name}</h2>
+    </div>
+    <div class="rillus">${illus(G.room)}</div>
+    <p class="ratmo">${r.atmo}</p>
+    <div class="enigbox">
+      <div class="eniglbl">Énigme</div>
+      <p class="enigtxt">${r.enigma}</p>
+    </div>
+    <div>
+      <p class="anslbl">Votre réponse</p>
+      <input class="ansinp" id="ans" maxlength="${r.max}" placeholder="${r.lbl}"
+        value="${saved}" ${done?'disabled':''}
+        onkeydown="if(event.key==='Enter')validate()">
+      ${!done?`<button class="btnval" onclick="validate()">Sceller la Réponse</button>`:''}
+      <div class="fb" id="fb"></div>
+      ${done?`<div style="margin-top:15px;padding:12px 16px;background:rgba(26,60,26,.3);border-left:3px solid #449944;color:#6ec46e;font-style:italic;">
+        ✓ Épreuve accomplie — <strong>${r.display}</strong>
+      </div>`:''}
+    </div>
+    <div class="navr" style="margin-top:22px;">
+      ${G.room>0?`<button class="btnnav" onclick="go(${G.room-1})">← Retour</button>`:''}
+      <button class="btnnav btnfwd ${done&&G.room<ROOMS.length-1?'on':''}" id="btnfwd" onclick="go(${G.room+1})">Salle suivante →</button>
+    </div>`;
+}
+
+function validate(){
+  if(G.done.includes(G.room))return;
+  const r=ROOMS[G.room];
+  const inp=document.getElementById('ans');
+  if(!inp)return;
+  const raw=inp.value.trim().toUpperCase().replace(/\s+/g,'');
+  if(!raw){setFb("Entrez une réponse avant de valider.",false);return;}
+  const ok=r.answers.some(a=>raw===a.toUpperCase().replace(/\s+/g,''));
+  if(ok){
+    G.answers[G.room]=raw;
+    G.done.push(G.room);
+    setFb(`✓ Exact. La réponse était : ${r.display}`,true);
+    inp.disabled=true;
+    setTimeout(()=>{
+      if(G.room<ROOMS.length-1){
+        const b=document.getElementById('btnfwd');
+        if(b)b.classList.add('on');
+        renderSide();
+      } else {
+        setTimeout(win,1000);
+      }
+    },500);
+  } else {
+    G.lives--;G.errors++;
+    renderLives();
+    setFb(`✗ "${raw}" — incorrect. ${G.lives} tentative(s) restante(s).`,false);
+    if(G.lives<=0){clearInterval(G.tick);lose("Vous avez épuisé toutes vos tentatives.");}
+  }
+}
+
+function setFb(msg,ok){
+  const el=document.getElementById('fb');
+  if(!el)return;
+  el.textContent=msg;el.className='fb '+(ok?'ok':'bad');
+}
+
+function go(i){G.room=i;renderRoom();renderSide();}
+
+function renderLives(){
+  const el=document.getElementById('lives');
+  if(!el)return;
+  el.innerHTML=Array(7).fill(0).map((_,i)=>`<div class="lv ${i>=G.lives?'x':''}"></div>`).join('');
+}
+
+function renderSide(){
+  const rl=document.getElementById('rlist');
+  if(rl) rl.innerHTML=ROOMS.map((r,i)=>{
+    const done=G.done.includes(i),act=i===G.room;
+    const lk=!done&&!act&&i>0&&!G.done.includes(i-1);
+    const cls=done?'done':act?'act':lk?'lk':'';
+    return `<div class="rpill ${cls}" onclick="go(${i})">
+      <div class="rdot"></div><span>${r.icon} ${r.name}</span>
+      ${done?'<span style="margin-left:auto;font-size:9px;">✓</span>':''}
+    </div>`;
+  }).join('');
+  renderVotes();
+}
+
+function renderVotes(){
+  const zone=document.getElementById('votes');if(!zone)return;
+  const r=ROOMS[G.room],v=G.votes[G.room];
+  const total=Object.values(v).reduce((a,b)=>a+b,0)||1;
+  zone.innerHTML=r.votes.map(opt=>{
+    const n=v[opt]||0,pct=Math.round(n/total*100);
+    const key=G.room+'_'+opt,on=G.voted[key]?'on':'';
+    return `<div class="vrow">
+      <button class="vbtn ${on}" onclick="vote('${opt.replace(/'/g,"\\'")}')">+1</button>
+      <span class="vlbl">${opt}</span>
+      <div class="vbar"><div class="vfill" style="width:${pct}%"></div></div>
+      <span class="vn">${n}</span>
+    </div>`;
+  }).join('');
+}
+
+function vote(opt){
+  const key=G.room+'_'+opt;if(G.voted[key])return;
+  G.voted[key]=true;
+  G.votes[G.room][opt]=(G.votes[G.room][opt]||0)+1;
+  renderVotes();
+}
+
+function win(){
+  clearInterval(G.tick);
+  const m=String(Math.floor(G.secs/60)).padStart(2,'0');
+  const s=String(G.secs%60).padStart(2,'0');
+  document.getElementById('ws-time').textContent=m+':'+s;
+  document.getElementById('ws-err').textContent=G.errors;
+  const wrap=document.getElementById('code-reveal');
+  wrap.innerHTML=FINAL_CODE.split('').map(d=>`<div class="cdb">${d}</div>`).join('');
+  const boxes=wrap.querySelectorAll('.cdb');
+  boxes.forEach((b,i)=>setTimeout(()=>b.classList.add('show'),(i+1)*350));
+  document.getElementById('s-win').style.display='flex';
+}
+
+function lose(msg){
+  document.getElementById('lose-msg').textContent=msg;
+  document.getElementById('s-lose').style.display='flex';
+}
+
+// ══════════════════
+// ILLUSTRATIONS
+// ══════════════════
+function illus(i){
+  const s=[
+    `<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+      <rect width="640" height="185" fill="#080604"/>
+      ${[0,1,2,3,4,5,6].map(n=>`<rect x="${n*105-8}" y="0" width="16" height="185" fill="#100e08" stroke="#1a1810" stroke-width=".5"/>`).join('')}
+      <rect x="0" y="148" width="640" height="37" fill="#0e0c08"/>
+      <ellipse cx="320" cy="150" rx="75" ry="18" fill="#161208" stroke="#282416" stroke-width="1"/>
+      <ellipse cx="320" cy="86" rx="32" ry="36" fill="#120e08" stroke="#3a2060" stroke-width="1.5"/>
+      <circle cx="307" cy="80" r="7" fill="#0a0806" stroke="#241848" stroke-width="1"/>
+      <circle cx="333" cy="80" r="7" fill="#0a0806" stroke="#241848" stroke-width="1"/>
+      <path d="M304 106 Q320 118 336 106" stroke="#241848" fill="none" stroke-width="1.5"/>
+      <line x1="311" y1="106" x2="311" y2="116" stroke="#241848" stroke-width="1"/>
+      <line x1="320" y1="106" x2="320" y2="116" stroke="#241848" stroke-width="1"/>
+      <line x1="329" y1="106" x2="329" y2="116" stroke="#241848" stroke-width="1"/>
+      ${[55,155,470,560].map((x,n)=>`<ellipse cx="${x}" cy="${65+n%2*32}" rx="13" ry="15" fill="#120e08" stroke="#1c1810" stroke-width=".5"/><circle cx="${x-4}" cy="${62+n%2*32}" r="3" fill="#0a0806"/><circle cx="${x+4}" cy="${62+n%2*32}" r="3" fill="#0a0806"/>`).join('')}
+      ${[90,210,430,550].map((x,n)=>`<circle cx="${x}" cy="${18+n*14}" r="2" fill="#3a2060" opacity=".5"><animate attributeName="opacity" values=".2;.7;.2" dur="${2+n*.3}s" repeatCount="indefinite"/></circle>`).join('')}
+    </svg>`,
+    `<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+      <rect width="640" height="185" fill="#0a0408"/>
+      ${['ᚠ','ᚢ','ᚦ','ᚨ','ᚱ','ᚲ','ᚷ','ᚹ','ᚺ','ᚾ','ᛁ','ᛃ'].flatMap((c,ci)=>
+        Array.from({length:12},(_,j)=>`<text x="${j*56+8}" y="${ci*17+18}" font-size="14" fill="${ci%3===0?'#4e1010':'#200808'}" opacity="${(.15+((ci*j)%10)*.04).toFixed(2)}" font-family="serif">${c}</text>`)
+      ).join('')}
+      <rect x="110" y="72" width="420" height="48" fill="#120608" stroke="#3d1010" stroke-width="1"/>
+      <text x="320" y="103" text-anchor="middle" font-size="17" fill="#8a3030" font-family="'Crimson Pro',serif" letter-spacing="7">1 · 1 · 2 · 3 · 5 · 8 · 13 · 21 · ?</text>
+    </svg>`,
+    `<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+      <rect width="640" height="185" fill="#06060c"/>
+      ${Array.from({length:7},(_,r)=>Array.from({length:9},(_,c)=>`<rect x="${c*72}" y="${r*27}" width="71" height="26" fill="none" stroke="#0e0e18" stroke-width=".5"/>`).join('')).join('')}
+      <ellipse cx="320" cy="92" rx="135" ry="58" fill="none" stroke="#241840" stroke-width="1.5"/>
+      <ellipse cx="320" cy="92" rx="92" ry="38" fill="#0c0c18" stroke="#3a2060" stroke-width="1"/>
+      <circle cx="320" cy="92" r="34" fill="#0a0a14" stroke="#6636a8" stroke-width="1.5"/>
+      <circle cx="320" cy="92" r="19" fill="#3a2060"/>
+      <circle cx="320" cy="92" r="8" fill="#6636a8"><animate attributeName="r" values="8;12;8" dur="3.2s" repeatCount="indefinite"/></circle>
+      <circle cx="320" cy="92" r="3" fill="#c0a0e8"/>
+      <circle cx="312" cy="86" r="2" fill="rgba(255,255,255,.35)"/>
+    </svg>`,
+    `<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+      <rect width="640" height="185" fill="#0c0804"/>
+      <rect x="0" y="148" width="640" height="37" fill="#100c06"/>
+      ${[75,240,400,565].map((x,n)=>`
+        <rect x="${x-24}" y="78" width="48" height="74" fill="#160c04" stroke="#261804" stroke-width=".5"/>
+        <rect x="${x-16}" y="58" width="32" height="24" fill="#1c1006" stroke="#261804" stroke-width=".5"/>
+        <ellipse cx="${x}" cy="82" rx="14" ry="7" fill="#241006" stroke="#381406" stroke-width="1"/>
+        <ellipse cx="${x}" cy="82" rx="8" ry="3.5" fill="${n===1?'#501806':'#280e04'}">
+          ${n===1?`<animate attributeName="fill" values="#501806;#7a2806;#501806" dur="1.4s" repeatCount="indefinite"/>`:''}
+        </ellipse>`).join('')}
+      <rect x="252" y="112" width="136" height="42" fill="#181006" stroke="#a87c18" stroke-width="1"/>
+      <rect x="272" y="97" width="96" height="20" fill="#1c1408" stroke="#a87c18" stroke-width=".5"/>
+      <rect x="290" y="152" width="12" height="20" fill="#141006"/>
+      <rect x="338" y="152" width="12" height="20" fill="#141006"/>
+    </svg>`,
+    `<svg viewBox="0 0 640 185" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+      <rect width="640" height="185" fill="#04020e"/>
+      ${[55,190,450,585].map(x=>`<rect x="${x-9}" y="0" width="18" height="185" fill="#0c0a1c" stroke="#141228" stroke-width=".5"/>`).join('')}
+      <rect x="0" y="152" width="640" height="33" fill="#0a081a"/>
+      ${[
+        {x:160,c:'#6a1818',on:true},
+        {x:250,c:'#186a18',on:true},
+        {x:390,c:'#18286a',on:true},
+        {x:480,c:'#2a2030',on:false}
+      ].map(({x,c,on})=>`
+        <rect x="${x-4}" y="80" width="8" height="44" fill="#160c04"/>
+        <ellipse cx="${x}" cy="80" rx="7" ry="3" fill="#1c1008"/>
+        ${on
+          ?`<ellipse cx="${x}" cy="73" rx="7" ry="11" fill="${c}" opacity=".75"><animate attributeName="ry" values="11;15;11" dur="1.3s" repeatCount="indefinite"/></ellipse><circle cx="${x}" cy="66" r="3" fill="${c}" opacity=".45"/>`
+          :`<ellipse cx="${x}" cy="78" rx="4" ry="5" fill="#140a06" opacity=".3"/>`
+        }`).join('')}
+      <rect x="284" y="40" width="72" height="117" fill="#0c0a1c" stroke="#3a2060" stroke-width="1.5"/>
+      <rect x="270" y="34" width="100" height="18" fill="#0c0a1c" stroke="#3a2060" stroke-width="1"/>
+      <rect x="284" y="155" width="18" height="18" fill="#0c0a1c" stroke="#3a2060" stroke-width=".5"/>
+      <rect x="338" y="155" width="18" height="18" fill="#0c0a1c" stroke="#3a2060" stroke-width=".5"/>
+      <rect x="306" y="54" width="28" height="80" fill="#0a081a" stroke="#241650" stroke-width=".5"/>
+      <ellipse cx="320" cy="48" rx="15" ry="18" fill="#0a081a" stroke="#3a2060" stroke-width="1"/>
+      <circle cx="313" cy="45" r="3" fill="#3a2060"><animate attributeName="opacity" values=".3;1;.3" dur="2.8s" repeatCount="indefinite"/></circle>
+      <circle cx="327" cy="45" r="3" fill="#3a2060"><animate attributeName="opacity" values=".3;1;.3" dur="2.8s" repeatCount="indefinite"/></circle>
+      <ellipse cx="320" cy="166" rx="52" ry="10" fill="#1e1430" opacity=".65"><animate attributeName="rx" values="52;76;52" dur="4.5s" repeatCount="indefinite"/></ellipse>
+    </svg>`,
+  ];
+  return s[i]||s[0];
+}
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oryxis — Le Donjon Maudit</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0e0c09;--bg2:#161410;--bg3:#1c1a12;
+  --pu:#3a2060;--pu2:#6636a8;--pu3:#9860d4;
+  --go:#a87c18;--go2:#d4a030;
+  --bld:#4e1010;--txt:#c4b888;--txtd:#60584a;--txtb:#eadca8;
+  --bd:#282416;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  background:var(--bg);color:var(--txt);
+  font-family:'Crimson Pro',Georgia,serif;
+  min-height:100vh;overflow-x:hidden;
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 79px,rgba(0,0,0,.1) 80px),
+    repeating-linear-gradient(90deg,transparent,transparent 79px,rgba(0,0,0,.07) 80px);
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:999;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.025) 0,rgba(0,0,0,.025) 1px,transparent 1px,transparent 4px);
+}
+
+/* ══ TITRE ══ */
+#s-title{
+  position:fixed;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:100;
+  background:radial-gradient(ellipse at 50% 38%,rgba(54,32,96,.32) 0%,var(--bg) 68%);
+}
+.eye-row{font-family:'Cinzel Decorative',serif;font-size:10px;color:var(--txtd);letter-spacing:.6em;margin-bottom:2.8rem;animation:flk 7s infinite;}
+@keyframes flk{0%,88%,90%,92%,100%{opacity:1;}89%,91%{opacity:.2;}}
+.orb{
+  width:88px;height:88px;border-radius:50%;
+  background:radial-gradient(circle at 36% 34%,var(--pu3),var(--pu));
+  box-shadow:0 0 44px rgba(102,54,168,.6),0 0 100px rgba(58,32,96,.28);
+  margin-bottom:2.2rem;animation:ob 3.8s ease-in-out infinite;
+}
+@keyframes ob{0%,100%{box-shadow:0 0 44px rgba(102,54,168,.6),0 0 100px rgba(58,32,96,.28);}50%{box-shadow:0 0 68px rgba(152,96,212,.85),0 0 140px rgba(58,32,96,.5);}}
+.t-main{
+  font-family:'Cinzel Decorative',serif;
+  font-size:clamp(24px,5.5vw,58px);
+  color:var(--pu3);text-align:center;line-height:1.2;
+  text-shadow:0 0 60px rgba(152,96,212,.3);margin-bottom:.5rem;
+}
+.t-sub{font-family:'Cinzel Decorative',serif;font-size:clamp(8px,1.3vw,12px);color:var(--go);letter-spacing:.4em;margin-bottom:2.8rem;}
+.t-lore{max-width:500px;text-align:center;font-size:17px;font-style:italic;color:var(--txtd);line-height:1.9;margin-bottom:3rem;padding:0 2rem;}
+.sep{width:46px;height:1px;background:var(--go);margin:0 auto 2.8rem;}
+.btn{
+  background:transparent;border:1px solid var(--go);color:var(--go);
+  font-family:'Cinzel Decorative',serif;font-size:10px;letter-spacing:.32em;
+  padding:13px 40px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden;
+}
+.btn::before{content:'';position:absolute;inset:0;background:var(--go);transform:scaleX(0);transform-origin:left;transition:transform .3s;z-index:-1;}
+.btn:hover{color:var(--bg);}
+.btn:hover::before{transform:scaleX(1);}
+
+/* ══ JEU ══ */
+#s-game{display:none;min-height:100vh;}
+.hdr{
+  background:var(--bg2);border-bottom:1px solid var(--bd);
+  padding:11px 26px;display:flex;align-items:center;
+  justify-content:space-between;position:sticky;top:0;z-index:50;
+}
+.hdr-brand{font-family:'Cinzel Decorative',serif;font-size:11px;color:var(--pu2);letter-spacing:.22em;}
+#timer{font-family:'Cinzel Decorative',serif;font-size:21px;color:var(--go);font-variant-numeric:tabular-nums;}
+#timer.hot{color:#c84040;animation:flk 1s infinite;}
+.lives{display:flex;gap:6px;align-items:center;}
+.lv{width:13px;height:13px;border-radius:50%;background:var(--pu2);box-shadow:0 0 5px rgba(102,54,168,.7);transition:all .3s;}
+.lv.x{background:var(--bld);box-shadow:none;}
+
+.gbody{display:grid;grid-template-columns:1fr 290px;min-height:calc(100vh - 52px);}
+
+/* MAIN */
+.gmain{padding:30px 34px;border-right:1px solid var(--bd);overflow-y:auto;}
+.rhead{display:flex;align-items:baseline;gap:14px;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid var(--bd);}
+.rnum{font-family:'Cinzel Decorative',serif;font-size:9px;color:var(--txtd);letter-spacing:.35em;}
+.rname{font-family:'Cinzel Decorative',serif;font-size:21px;color:var(--txtb);}
+.rillus{width:100%;height:185px;background:var(--bg2);border:1px solid var(--bd);margin-bottom:24px;overflow:hidden;}
+.ratmo{font-size:16px;font-style:italic;color:var(--txtd);line-height:1.9;margin-bottom:26px;padding-left:15px;border-left:2px solid var(--pu);}
+.enigbox{background:var(--bg2);border:1px solid var(--bd);padding:26px 26px 22px;margin-bottom:26px;}
+.eniglbl{
+  font-family:'Cinzel Decorative',serif;font-size:8px;color:var(--go);
+  letter-spacing:.4em;margin-bottom:15px;display:flex;align-items:center;gap:10px;
+}
+.eniglbl::after{content:'';flex:1;height:1px;background:var(--bd);}
+.enigtxt{font-size:18px;line-height:1.9;color:var(--txtb);}
+.enigtxt em{color:var(--pu3);font-style:normal;font-weight:600;}
+.anslbl{font-family:'Cinzel Decorative',serif;font-size:9px;color:var(--txtd);letter-spacing:.3em;margin-bottom:11px;}
+.ansinp{
+  background:var(--bg3);border:1px solid var(--bd);color:var(--pu2);
+  font-family:'Crimson Pro',serif;font-size:22px;padding:11px 17px;
+  outline:none;width:100%;max-width:380px;transition:all .25s;text-transform:uppercase;letter-spacing:.1em;
+}
+.ansinp:focus{border-color:var(--pu2);box-shadow:0 0 14px rgba(58,32,96,.4);}
+.ansinp:disabled{opacity:.4;}
+.btnval{
+  background:var(--pu);border:none;color:var(--pu3);
+  font-family:'Cinzel Decorative',serif;font-size:9px;letter-spacing:.2em;
+  padding:11px 28px;cursor:pointer;transition:all .3s;margin-top:11px;display:block;
+}
+.btnval:hover{background:var(--pu2);color:#fff;}
+.fb{margin-top:13px;padding:11px 15px;font-size:15px;font-style:italic;display:none;}
+.fb.ok{background:rgba(28,68,28,.35);border-left:3px solid #4a9b4a;color:#72c472;display:block;}
+.fb.bad{background:rgba(68,20,20,.35);border-left:3px solid #9b4a4a;color:#c47272;display:block;}
+.navr{display:flex;gap:10px;margin-top:22px;}
+.btnnav{
+  background:var(--bg3);border:1px solid var(--bd);color:var(--txtd);
+  font-family:'Cinzel Decorative',serif;font-size:8px;letter-spacing:.15em;
+  padding:10px 20px;cursor:pointer;transition:all .25s;
+}
+.btnnav:hover{border-color:var(--pu);color:var(--pu3);}
+.btnfwd{background:var(--go);border-color:var(--go);color:var(--bg);display:none;}
+.btnfwd.on{display:block;}
+.btnfwd:hover{background:var(--go2);}
+
+/* SIDEBAR */
+.gside{background:var(--bg2);padding:22px 17px;overflow-y:auto;max-height:calc(100vh - 52px);}
+.slbl{font-family:'Cinzel Decorative',serif;font-size:8px;color:var(--txtd);letter-spacing:.4em;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd);}
+.ssect{margin-bottom:26px;}
+.rpills{display:flex;flex-direction:column;gap:5px;}
+.rpill{display:flex;align-items:center;gap:9px;padding:8px 11px;border:1px solid var(--bd);font-size:12px;color:var(--txtd);cursor:pointer;transition:all .2s;}
+.rpill:hover{border-color:var(--pu);color:var(--txt);}
+.rpill.act{border-color:var(--pu);color:var(--txtb);background:rgba(58,32,96,.12);}
+.rpill.done{border-color:var(--go);color:var(--go);}
+.rpill.lk{opacity:.28;pointer-events:none;}
+.rdot{width:7px;height:7px;border-radius:50%;background:var(--bd);flex-shrink:0;}
+.rpill.act .rdot{background:var(--pu2);box-shadow:0 0 6px var(--pu2);}
+.rpill.done .rdot{background:var(--go);}
+.vrow{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.vbtn{background:var(--bg3);border:1px solid var(--bd);color:var(--txtd);font-size:11px;padding:3px 8px;cursor:pointer;transition:all .2s;font-family:'Crimson Pro',serif;flex-shrink:0;}
+.vbtn:hover,.vbtn.on{border-color:var(--pu2);color:var(--pu3);background:rgba(58,32,96,.3);}
+.vlbl{font-size:11px;color:var(--txtd);flex:1;line-height:1.3;}
+.vbar{width:44px;height:5px;background:var(--bg3);border:1px solid var(--bd);overflow:hidden;flex-shrink:0;}
+.vfill{height:100%;background:var(--pu2);transition:width .5s;}
+.vn{font-size:10px;color:var(--txtd);min-width:14px;text-align:right;}
+
+/* ══ VICTOIRE ══ */
+#s-win{
+  display:none;position:fixed;inset:0;z-index:200;
+  flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 50%,rgba(168,124,24,.14) 0%,rgba(14,12,9,.98) 68%);
+}
+.wsym{font-family:'Cinzel Decorative',serif;font-size:66px;color:var(--go);text-shadow:0 0 44px rgba(212,160,48,.65);margin-bottom:1rem;animation:ob 2.5s infinite;}
+.wtitle{font-family:'Cinzel Decorative',serif;font-size:32px;color:var(--go);margin-bottom:.8rem;text-align:center;}
+.wlore{font-size:16px;color:var(--txtd);font-style:italic;text-align:center;max-width:440px;margin-bottom:2rem;line-height:1.8;padding:0 2rem;}
+.code-reveal{display:flex;gap:14px;margin-bottom:2.5rem;}
+.cdb{
+  width:76px;height:96px;background:var(--bg2);border:1px solid var(--go);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cinzel Decorative',serif;font-size:44px;color:var(--go);
+  text-shadow:0 0 24px rgba(212,160,48,.7);
+  opacity:0;transform:translateY(16px);
+  transition:opacity .5s ease, transform .5s ease;
+}
+.cdb.show{opacity:1;transform:translateY(0);}
+.wstats{display:flex;gap:40px;margin-bottom:2.5rem;}
+.stv{font-family:'Cinzel Decorative',serif;font-size:26px;color:var(--go);}
+.stl{font-size:11px;color:var(--txtd);letter-spacing:.15em;}
+.stb{text-align:center;}
+
+/* ══ DÉFAITE ══ */
+#s-lose{
+  display:none;position:fixed;inset:0;z-index:200;
+  flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(8,4,4,.98);
+}
+
+@media(max-width:780px){.gbody{grid-template-columns:1fr;}.gside{max-height:none;border-top:1px solid var(--bd);}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ TITRE ═══════════ -->
+<div id="s-title">
+  <p class="eye-row">☽ &nbsp; Oryxis &nbsp; ☾</p>
+  <div class="orb"></div>
+  <h1 class="t-main">Le Donjon<br>Maudit</h1>
+  <p class="t-sub">Cinq Épreuves &nbsp;·&nbsp; Un Sceau</p>
+  <div class="sep"></div>
+  <p class="t-lore">
+    Cinq salles. Cinq mystères que les gardiens ont scellés depuis l'aube des âges.
+    Seuls ceux qui pensent ensemble percent les ténèbres.
+    Le code du donjon n'attend que vous.
+  </p>
+  <button class="btn" onclick="startGame()">Entrer dans le Donjon</button>
+</div>
+
+<!-- ═══════════ JEU ═══════════ -->
+<div id="s-game">
+  <header class="hdr">
+    <span class="hdr-brand">☽ &nbsp; Donjon d'Oryxis &nbsp; ☾</span>
+    <span id="timer">45:00</span>
+    <div class="lives" id="lives"></div>
+  </header>
+  <div class="gbody">
+    <div class="gmain" id="gmain"></div>
+    <aside class="gside">
+      <div class="ssect">
+        <p class="slbl">Progression</p>
+        <div class="rpills" id="rlist"></div>
+      </div>
+      <div class="ssect">
+        <p class="slbl">Vote du groupe</p>
+        <p style="font-size:12px;color:var(--txtd);font-style:italic;margin-bottom:10px;">Quelle piste explorer ?</p>
+        <div id="votes"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- ═══════════ VICTOIRE ═══════════ -->
+<div id="s-win">
+  <div class="wsym">✦</div>
+  <h2 class="wtitle">Le Sceau est Brisé</h2>
+  <p class="wlore">Le Gardien s'incline. Les cinq épreuves sont vaincues.<br>Le code du Donjon d'Oryxis vous appartient :</p>
+  <div class="code-reveal" id="code-reveal"></div>
+  <div class="wstats">
+    <div class="stb"><div class="stv" id="ws-time">—</div><div class="stl">Temps restant</div></div>
+    <div class="stb"><div class="stv" id="ws-err">—</div><div class="stl">Erreurs commises</div></div>
+  </div>
+  <button class="btn" onclick="location.reload()">Rejouer</button>
+</div>
+
+<!-- ═══════════ DÉFAITE ═══════════ -->
+<div id="s-lose">
+  <div style="font-size:60px;color:var(--bld);text-shadow:0 0 30px rgba(78,16,16,.9);margin-bottom:1rem;">☠</div>
+  <h2 style="font-family:'Cinzel Decorative',serif;font-size:28px;color:#7a3232;margin-bottom:1rem;">Vous Avez Péri</h2>
+  <p style="font-size:16px;color:var(--txtd);font-style:italic;text-align:center;max-width:360px;margin-bottom:2.5rem;padding:0 2rem;" id="lose-msg">Le donjon a réclamé votre âme.</p>
+  <button class="btn" onclick="location.reload()">Recommencer</button>
+</div>
+
+<script>
+const FINAL_CODE = "3748";
+
+const ROOMS = [
+  {
+    id:1, name:"La Crypte des Ombres", icon:"💀",
+    atmo:"Les murs de pierre noire suintent l'humeur des siècles. Des centaines de crânes sont empilés dans des alcôves obscures. Au centre, un autel fendu porte une inscription rongée par le temps.",
     enigma:`Sur la dalle centrale, vingt-six symboles sont gravés en cercle.
 L'un d'eux brille d'une lumière violette.
 
